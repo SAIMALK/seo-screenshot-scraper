@@ -53,41 +53,41 @@ app.post("/gsc", async (req, res) => {
   }
 });
 
-app.post("/pdf", async (req, res) => {
-  const {
-    SPREADSHEET_ID,
-    SHEET_NAME = "Sheet6",
-    SHEET7_NAME = "Sheet7",
-  } = req.body;
+// app.post("/pdf", async (req, res) => {
+//   const {
+//     SPREADSHEET_ID,
+//     SHEET_NAME = "Sheet6",
+//     SHEET7_NAME = "Sheet7",
+//   } = req.body;
 
-  if (!SPREADSHEET_ID) {
-    return res.status(400).json({ error: "Missing required SPREADSHEET_ID" });
-  }
-  const { runPdfScraper } = require("./pdfGenerator"); // Your second script file
+//   if (!SPREADSHEET_ID) {
+//     return res.status(400).json({ error: "Missing required SPREADSHEET_ID" });
+//   }
+//   const { runPdfScraper } = require("./pdfGenerator"); // Your second script file
 
 
-  try {
-    const pdfPath = await runPdfScraper({
-      SPREADSHEET_ID,
-      SHEET_NAME,
-      SHEET7_NAME,
-    });
+//   try {
+//     const pdfPath = await runPdfScraper({
+//       SPREADSHEET_ID,
+//       SHEET_NAME,
+//       SHEET7_NAME,
+//     });
 
-    res.status(200).json({
-      message: "PDF generation completed successfully",
-      pdfPath: path.basename(pdfPath),
-      downloadUrl: `/download/${path.basename(pdfPath)}`,
-    });
-  } catch (err) {
-    console.error("PDF generation error:", err);
-    res
-      .status(500)
-      .json({ error: "PDF generation failed", details: err.message });
-  }
-});
+//     res.status(200).json({
+//       message: "PDF generation completed successfully",
+//       pdfPath: path.basename(pdfPath),
+//       downloadUrl: `/download/${path.basename(pdfPath)}`,
+//     });
+//   } catch (err) {
+//     console.error("PDF generation error:", err);
+//     res
+//       .status(500)
+//       .json({ error: "PDF generation failed", details: err.message });
+//   }
+// });
 
-// Add this to serve generated PDFs
-app.use("/download", express.static(__dirname));
+// // Add this to serve generated PDFs
+// app.use("/download", express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
