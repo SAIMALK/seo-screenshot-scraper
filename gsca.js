@@ -603,12 +603,12 @@ exports.runGSCScraper = async function runGSCScraper({
  
 }) {
   const sheets = await getSheetsClient(SPREADSHEET_ID);
-
+  const userDataDir = path.join(__dirname, "google-session");
 
   try {
     const browser = await puppeteer.launch({
-      headless: true,
-     
+      headless: false,
+      userDataDir,
       args: [
         "--no-sandbox",
         "--start-maximized",
@@ -616,7 +616,7 @@ exports.runGSCScraper = async function runGSCScraper({
         "--disable-features=VizDisplayCompositor",
       ],
       defaultViewport: null,
-    
+      executablePath: getChromePath(),
     });
 
     const page = await browser.newPage();
