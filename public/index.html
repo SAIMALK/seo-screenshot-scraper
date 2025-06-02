@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>SEO Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: auto;
+            padding: 1rem;
+        }
+
+        input,
+        button {
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        #startBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #startBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #stopBtn {
+            background-color: #f44336;
+            color: white;
+        }
+
+        #stopBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #restartBtn {
+            background-color: #ff9800;
+            color: white;
+        }
+
+        #restartBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .button-group button {
+            flex: 1;
+            margin: 0;
+        }
+
+        #logs {
+            background: #f9f9f9;
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 1rem;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .status {
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status.running {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #4caf50;
+        }
+
+        .status.stopped {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #f44336;
+        }
+
+        .status.finished {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #2196f3;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>SEO Screenshot Scraper</h1>
+
+    <label>Google Spreadsheet ID:</label>
+    <input type="text" id="spreadsheetId" placeholder="Enter Spreadsheet ID" value="12lLvyhkD-FQC3nAvvMb2YItjT3cDHQ0ASKSJkV9d5wo" />
+
+    <label>Sheet Name:</label>
+    <input type="text" id="sheetName" placeholder="Sheet1" value="Sheet1" />
+
+    <label>Gyazo Access Token:</label>
+    <input type="text" id="gyazoToken" placeholder="Enter Gyazo Token" value="n6OumApHU_5oKfFFGX6UNmR45fyDqcw6SGTBkCLsBGM" />
+
+    <div class="button-group">
+        <button id="startBtn">Start Scraping</button>
+        <button id="stopBtn" disabled>Stop Scraping</button>
+        <button id="restartBtn" disabled>Restart Scraping</button>
+    </div>
+
+    <div id="status" class="status stopped">Status: Ready to start</div>
+
+    <h3>Logs:</h3>
+    <div id="logs"></div>
+
+    <script>
+        const startBtn = document.getElementById("startBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const restartBtn = document.getElementById("restartBtn");
+        const logsDiv = document.getElementById("logs");
+        const statusDiv = document.getElementById("status");
+
+        function updateStatus(text, className) {
+            statusDiv.textContent = `Status: ${text}`;
+            statusDiv.className = `status ${className}`;
+        }
+
+        function appendLog(text) {
+            logsDiv.textContent += text + "\n";
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        async function startScraping() {
+            const spreadsheetId = document.getElementById("spreadsheetId").value.trim();
+            const sheetName = document.getElementById("sheetName").value.trim();
+            const gyazoToken = document.getElementById("gyazoToken").value.trim();
+
+            if (!spreadsheetId || !sheetName || !gyazoToken) {
+                alert("Please fill all fields.");
+                return;
+            }
+
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            restartBtn.disabled = true;
+            updateStatus("Starting...", "running");
+            appendLog("Starting scraping...");
+
+            try {
+                const res = await fetch("/start", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ spreadsheetId, sheetName, gyazoToken }),
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    appendLog("Failed to start: " + errorText);
+                    updateStatus("Failed to start", "stopped");
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    return;
+                }
+
+                updateStatus("Running", "running");
+                pollLogs();
+            } catch (error) {
+                appendLog("Network error: " + error.message);
+                updateStatus("Network error", "stopped");
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        async function stopScraping() {
+            stopBtn.disabled = true;
+            updateStatus("Stopping...", "stopped");
+            appendLog("Stopping scraping...");
+
+            try {
+                const res = await fetch("/stop", {
+                    method: "POST",
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    appendLog("Failed to stop: " + errorText);
+                } else {
+                    appendLog("Stop signal sent");
+                }
+            } catch (error) {
+                appendLog("Network error while stopping: " + error.message);
+            }
+        }
+
+        async function restartScraping() {
+            const spreadsheetId = document.getElementById("spreadsheetId").value.trim();
+            const sheetName = document.getElementById("sheetName").value.trim();
+            const gyazoToken = document.getElementById("gyazoToken").value.trim();
+
+            if (!spreadsheetId || !sheetName || !gyazoToken) {
+                alert("Please fill all fields.");
+                return;
+            }
+
+            restartBtn.disabled = true;
+            stopBtn.disabled = false;
+            startBtn.disabled = true;
+            updateStatus("Restarting...", "running");
+            appendLog("Restarting scraping...");
+
+            try {
+                const res = await fetch("/restart", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ spreadsheetId, sheetName, gyazoToken }),
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    appendLog("Failed to restart: " + errorText);
+                    updateStatus("Failed to restart", "stopped");
+                    restartBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    startBtn.disabled = false;
+                    return;
+                }
+
+                updateStatus("Running", "running");
+                pollLogs();
+            } catch (error) {
+                appendLog("Network error: " + error.message);
+                updateStatus("Network error", "stopped");
+                restartBtn.disabled = false;
+                stopBtn.disabled = true;
+                startBtn.disabled = false;
+            }
+        }
+
+        let pollInterval = null;
+        async function pollLogs() {
+            if (pollInterval) clearInterval(pollInterval);
+
+            pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch("/logs");
+                    if (!res.ok) return;
+
+                    const data = await res.json();
+                    logsDiv.textContent = data.logs.join("\n");
+                    logsDiv.scrollTop = logsDiv.scrollHeight;
+
+                    if (!data.isRunning) {
+                        if (data.wasStopped) {
+                            updateStatus("Stopped by user", "stopped");
+                            appendLog("Scraping stopped by user.");
+                        } else {
+                            updateStatus("Finished", "finished");
+                            appendLog("Scraping finished.");
+                        }
+
+                        startBtn.disabled = false;
+                        stopBtn.disabled = true;
+                        restartBtn.disabled = false;
+                        clearInterval(pollInterval);
+                    }
+                } catch (error) {
+                    console.error("Error polling logs:", error);
+                }
+            }, 2000);
+        }
+
+        startBtn.addEventListener("click", startScraping);
+        stopBtn.addEventListener("click", stopScraping);
+        restartBtn.addEventListener("click", restartScraping);
+    </script>
+</body>
+
+</html>
