@@ -9,7 +9,7 @@ const fs = require("fs");
 puppeteer.use(StealthPlugin());
 
 const GYAZO_ACCESS_TOKEN = process.env.GYAZO_ACCESS_TOKEN;
-const KEYFILEPATH = "./service-account.json";
+const KEYFILEPATH = "./seo-project.json";
 
 
 // Ahrefs login credentials - add these to your .env file
@@ -524,6 +524,23 @@ async function captureScrollableContainer(
   );
   return screenshots;
 }
+async function extractGSCMetrics(page) {
+  const values = await page.evaluate(() => {
+    const elements = Array.from(document.querySelectorAll(".nnLLaf.vtZz6e"));
+    return elements.slice(0, 4).map((el) => el.innerText.trim()); // [clicks, impressions, ctr, position]
+  });
+
+  if (values.length < 4) {
+    throw new Error("❌ Could not extract all GSC metric values.");
+  }
+
+  return {
+    clicks: values[0],
+    impressions: values[1],
+    ctr: values[2],
+    position: values[3],
+  };
+}
 
 async function uploadScreenshotsAndSaveToSheets(
   screenshots,
@@ -600,7 +617,7 @@ function getChromePath() {
 exports.runGSCScraper = async function runGSCScraper({
   SPREADSHEET_ID,
   SHEET_NAME,
- 
+  website,
 }) {
   const sheets = await getSheetsClient(SPREADSHEET_ID);
   const userDataDir = path.join(__dirname, "google-session");
@@ -639,21 +656,64 @@ exports.runGSCScraper = async function runGSCScraper({
     const GSC_COL_INDEX = 0; // Column A (0-indexed)
     const AHREFS_MONTHLY_COL_INDEX = 1; // Column B (0-indexed)
     const AHREFS_AVERAGE_COL_INDEX = 2; // Column C (0-indexed)
+    const TOTAL_CLICKS_INDEX = 3
+    const TOTAL_IMPRESSIONS_INDEX = 4
+    const AVERAGE_CTR_INDEX = 5
+    const AVERAGE_POSITION_INDEX = 6
 
     // 1. GSC Screenshots
     const googleServiceURL =
-      "https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fmaidinto.ca%2F&num_of_days=28";
+      `https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2F${website}%2F&num_of_days=28&metrics=CLICKS%2CIMPRESSIONS%2CCTR%2CPOSITION`;
 
     console.log("🌐 Navigating to Google Search Console...");
     await page.goto(googleServiceURL, { waitUntil: "networkidle2" });
-    await humanDelay(15000, 17000);
+    await humanDelay(5000, 7000);
 
     console.log("📸 Capturing GSC screenshots...");
     const gscScreenshots = await captureScrollableContainer(
       page,
-      [6, 400, 700]
+      [6, 400, 720]
+    );
+    console.log("📊 Extracting GSC performance metrics...");
+    const { clicks, impressions, ctr, position } = await extractGSCMetrics(
+      page
     );
 
+    // Save metrics to Google Sheets (row 2 is START_ROW_INDEX)
+    await writeSheet(
+      sheets,
+      SPREADSHEET_ID,
+      SHEET_NAME,
+      START_ROW_INDEX,
+      TOTAL_CLICKS_INDEX,
+      clicks
+    );
+    await writeSheet(
+      sheets,
+      SPREADSHEET_ID,
+      SHEET_NAME,
+      START_ROW_INDEX,
+      TOTAL_IMPRESSIONS_INDEX,
+      impressions
+    );
+    await writeSheet(
+      sheets,
+      SPREADSHEET_ID,
+      SHEET_NAME,
+      START_ROW_INDEX,
+      AVERAGE_CTR_INDEX,
+      ctr
+    );
+    await writeSheet(
+      sheets,
+      SPREADSHEET_ID,
+      SHEET_NAME,
+      START_ROW_INDEX,
+      AVERAGE_POSITION_INDEX,
+      position
+    );
+
+    console.log("✅ Saved GSC metrics to sheet columns D-G");
     // Upload GSC screenshots and save to column A (rows 2, 3, 4)
     if (gscScreenshots.length > 0) {
       console.log(
@@ -665,7 +725,8 @@ exports.runGSCScraper = async function runGSCScraper({
         SPREADSHEET_ID, // Add this
         SHEET_NAME,
         START_ROW_INDEX,
-        GSC_COL_INDEX
+        GSC_COL_INDEX,
+       
       );
       console.log(
         `✅ GSC: Uploaded ${
@@ -680,7 +741,7 @@ exports.runGSCScraper = async function runGSCScraper({
 
     // 2. Ahrefs Monthly Screenshots
     const ahrefsMonthlyURL =
-      "https://app.ahrefs.com/v2-site-explorer/overview?backlinksChartMode=metrics&backlinksChartPerformanceSources=domainRating&backlinksCompetitorsSource=%22UrlRating%22&backlinksRefdomainsSource=%22RefDomainsNew%22&bestFilter=all&brandedTrafficSource=Branded&chartGranularity=daily&chartInterval=year2&competitors=&countries=&country=all&generalChartBrandedTraffic=Branded%7C%7CNon-Branded&generalChartMode=metrics&generalChartPerformanceSources=domainRating%7C%7CorganicTraffic&generalCompetitorsSource=%22OrganicTraffic%22&generalCountriesSource=organic-traffic&generalPagesByTrafficChartMode=Percentage&generalPagesByTrafficSource=Pages%7C%7CTraffic&highlightChanges=24h&intentsMainSource=informational&keywordsSource=all&mode=subdomains&organicChartBrandedTraffic=Branded%7C%7CNon-Branded&organicChartMode=metrics&organicChartPerformanceSources=impressions%7C%7CorganicTraffic%7C%7CorganicTrafficValue&organicCompetitorsSource=%22OrganicTraffic%22&organicCountriesSource=organic-traffic&organicPagesByTrafficChartMode=Percentage&organicPagesByTrafficSource=Pages%7C%7CTraffic&overview_tab=general&paidSearchPaidKeywordsByTopPositionsChartMode=Percentage&paidTrafficSources=cost%7C%7Ctraffic&target=www.attn2detail.info%2F&topLevelDomainFilter=all&topOrganicKeywordsMode=normal&topOrganicPagesMode=normal&trafficType=Organic&volume_type=monthly";
+      `https://app.ahrefs.com/v2-site-explorer/overview?backlinksChartMode=metrics&backlinksChartPerformanceSources=domainRating&backlinksCompetitorsSource=%22UrlRating%22&backlinksRefdomainsSource=%22RefDomainsNew%22&bestFilter=all&brandedTrafficSource=Branded&chartGranularity=daily&chartInterval=year2&competitors=&countries=&country=all&generalChartBrandedTraffic=Branded%7C%7CNon-Branded&generalChartMode=metrics&generalChartPerformanceSources=domainRating%7C%7CorganicTraffic&generalCompetitorsSource=%22OrganicTraffic%22&generalCountriesSource=organic-traffic&generalPagesByTrafficChartMode=Percentage&generalPagesByTrafficSource=Pages%7C%7CTraffic&highlightChanges=24h&intentsMainSource=informational&keywordsSource=all&mode=subdomains&organicChartBrandedTraffic=Branded%7C%7CNon-Branded&organicChartMode=metrics&organicChartPerformanceSources=impressions%7C%7CorganicTraffic%7C%7CorganicTrafficValue&organicCompetitorsSource=%22OrganicTraffic%22&organicCountriesSource=organic-traffic&organicPagesByTrafficChartMode=Percentage&organicPagesByTrafficSource=Pages%7C%7CTraffic&overview_tab=general&paidSearchPaidKeywordsByTopPositionsChartMode=Percentage&paidTrafficSources=cost%7C%7Ctraffic&target=${website}%2F&topLevelDomainFilter=all&topOrganicKeywordsMode=normal&topOrganicPagesMode=normal&trafficType=Organic&volume_type=monthly`;
 
     await navigateToAhrefsWithLogin(page, ahrefsMonthlyURL);
 
@@ -716,7 +777,7 @@ exports.runGSCScraper = async function runGSCScraper({
 
     // 3. Ahrefs Average Screenshots
     const ahrefsAverageURL =
-      "https://app.ahrefs.com/v2-site-explorer/overview?backlinksChartMode=metrics&backlinksChartPerformanceSources=domainRating&backlinksCompetitorsSource=%22UrlRating%22&backlinksRefdomainsSource=%22RefDomainsNew%22&bestFilter=all&brandedTrafficSource=Branded&chartGranularity=daily&chartInterval=year2&competitors=&countries=&country=all&generalChartBrandedTraffic=Branded%7C%7CNon-Branded&generalChartMode=metrics&generalChartPerformanceSources=domainRating%7C%7CorganicTraffic&generalCompetitorsSource=%22OrganicTraffic%22&generalCountriesSource=organic-traffic&generalPagesByTrafficChartMode=Percentage&generalPagesByTrafficSource=Pages%7C%7CTraffic&highlightChanges=24h&intentsMainSource=informational&keywordsSource=all&mode=subdomains&organicChartBrandedTraffic=Branded%7C%7CNon-Branded&organicChartMode=metrics&organicChartPerformanceSources=impressions%7C%7CorganicTraffic%7C%7CorganicTrafficValue&organicCompetitorsSource=%22OrganicTraffic%22&organicCountriesSource=organic-traffic&organicPagesByTrafficChartMode=Percentage&organicPagesByTrafficSource=Pages%7C%7CTraffic&overview_tab=general&paidSearchPaidKeywordsByTopPositionsChartMode=Percentage&paidTrafficSources=cost%7C%7Ctraffic&target=www.attn2detail.info%2F&topLevelDomainFilter=all&topOrganicKeywordsMode=normal&topOrganicPagesMode=normal&trafficType=Organic&volume_type=average";
+      `https://app.ahrefs.com/v2-site-explorer/overview?backlinksChartMode=metrics&backlinksChartPerformanceSources=domainRating&backlinksCompetitorsSource=%22UrlRating%22&backlinksRefdomainsSource=%22RefDomainsNew%22&bestFilter=all&brandedTrafficSource=Branded&chartGranularity=daily&chartInterval=year2&competitors=&countries=&country=all&generalChartBrandedTraffic=Branded%7C%7CNon-Branded&generalChartMode=metrics&generalChartPerformanceSources=domainRating%7C%7CorganicTraffic&generalCompetitorsSource=%22OrganicTraffic%22&generalCountriesSource=organic-traffic&generalPagesByTrafficChartMode=Percentage&generalPagesByTrafficSource=Pages%7C%7CTraffic&highlightChanges=24h&intentsMainSource=informational&keywordsSource=all&mode=subdomains&organicChartBrandedTraffic=Branded%7C%7CNon-Branded&organicChartMode=metrics&organicChartPerformanceSources=impressions%7C%7CorganicTraffic%7C%7CorganicTrafficValue&organicCompetitorsSource=%22OrganicTraffic%22&organicCountriesSource=organic-traffic&organicPagesByTrafficChartMode=Percentage&organicPagesByTrafficSource=Pages%7C%7CTraffic&overview_tab=general&paidSearchPaidKeywordsByTopPositionsChartMode=Percentage&paidTrafficSources=cost%7C%7Ctraffic&target=${website}%2F&topLevelDomainFilter=all&topOrganicKeywordsMode=normal&topOrganicPagesMode=normal&trafficType=Organic&volume_type=average`;
 
     await navigateToAhrefsWithLogin(page, ahrefsAverageURL);
 
