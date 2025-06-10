@@ -25,7 +25,7 @@ const USER_AGENTS = [
 
 // const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 // const SHEET_NAME = process.env.SHEET_NAME || "Sheet1";
-const KEYFILEPATH = "./service-account.json";
+const KEYFILEPATH = "./seo-project.json";
 
 // Helper function to get Chrome path
 function getChromePath() {
