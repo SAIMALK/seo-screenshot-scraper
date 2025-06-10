@@ -10,8 +10,8 @@ const app = express();
 app.use(express.json());
 
 app.post("/scrape", async (req, res) => {
-  const { SPREADSHEET_ID, SHEET_NAME, GYAZO_ACCESS_TOKEN } = req.body;
-console.log(req.body)
+  const { SPREADSHEET_ID, SHEET_NAME, GYAZO_ACCESS_TOKEN } = req.query;
+console.log(req.query);
   if (!SPREADSHEET_ID || !GYAZO_ACCESS_TOKEN) {
     return res.status(400).json({ error: "Missing required credentials." });
   }
@@ -30,8 +30,8 @@ console.log(req.body)
   }
 });
 app.post("/gsc", async (req, res) => {
-  const { SPREADSHEET_ID, SHEET_NAME,  } = req.body;
-
+  const { SPREADSHEET_ID, SHEET_NAME,website } = req.query;
+console.log(req.query);
   if (!SPREADSHEET_ID ) {
     return res.status(400).json({ error: "Missing required credentials." });
   }
@@ -41,9 +41,9 @@ app.post("/gsc", async (req, res) => {
     const { runGSCScraper } = require("./gsca"); // Your second script file
 
     await runGSCScraper({
-      SPREADSHEET_ID,
-      SHEET_NAME: SHEET_NAME ,
-      
+      SPREADSHEET_ID: SPREADSHEET_ID,
+      SHEET_NAME: SHEET_NAME,
+      website: website,
     });
 
     res.status(200).json({ message: "GSC scraping completed successfully." });
@@ -53,41 +53,7 @@ app.post("/gsc", async (req, res) => {
   }
 });
 
-app.post("/pdf", async (req, res) => {
-  const {
-    SPREADSHEET_ID,
-    SHEET_NAME = "Sheet6",
-    SHEET7_NAME = "Sheet7",
-  } = req.body;
 
-  if (!SPREADSHEET_ID) {
-    return res.status(400).json({ error: "Missing required SPREADSHEET_ID" });
-  }
-  const { runPdfScraper } = require("./pdfGenerator"); // Your second script file
-
-
-  try {
-    const pdfPath = await runPdfScraper({
-      SPREADSHEET_ID,
-      SHEET_NAME,
-      SHEET7_NAME,
-    });
-
-    res.status(200).json({
-      message: "PDF generation completed successfully",
-      pdfPath: path.basename(pdfPath),
-      downloadUrl: `/download/${path.basename(pdfPath)}`,
-    });
-  } catch (err) {
-    console.error("PDF generation error:", err);
-    res
-      .status(500)
-      .json({ error: "PDF generation failed", details: err.message });
-  }
-});
-
-// Add this to serve generated PDFs
-app.use("/download", express.static(__dirname));
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
